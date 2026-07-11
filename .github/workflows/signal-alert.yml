@@ -1,0 +1,43 @@
+name: SPY Signal Alert
+
+# Запуск каждый будний день в 21:15 UTC — это ~15 минут после закрытия
+# биржи США (16:00 ET / 21:00 UTC зимой, 20:00 UTC летом).
+# Летом фактически получится через ~1ч15м после закрытия — данные уже готовы.
+on:
+  schedule:
+    - cron: "15 21 * * 1-5"     # пн-пт
+  workflow_dispatch:            # кнопка ручного запуска в интерфейсе GitHub
+
+# Нужно, чтобы бот мог сохранять state.json обратно в репозиторий
+permissions:
+  contents: write
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Забрать репозиторий
+        uses: actions/checkout@v4
+
+      - name: Поставить Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Установить зависимости
+        run: pip install yfinance pandas numpy requests
+
+      - name: Посчитать сигнал и отправить в Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python spy_signal_alert.py
+
+      - name: Сохранить состояние режима (state.json)
+        run: |
+          git config user.name "signal-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add state.json || true
+          git diff --staged --quiet || git commit -m "update state [skip ci]"
+          git push || true
